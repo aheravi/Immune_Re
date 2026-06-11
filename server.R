@@ -194,5 +194,131 @@ function(input, output, session) {
       
     }
   })
+
   
+  
+  
+  # ---- Populate sample dropdowns ----
+  observe({
+    updateSelectInput(session, "ir_gene_sample",
+                      choices = names(ir_immdata$data),
+                      selected = names(ir_immdata$data)[1])
+    updateSelectInput(session, "ir_vj_sample",
+                      choices = names(ir_immdata$data),
+                      selected = names(ir_immdata$data)[1])
+  })
+  
+  # ---- Overview / QC ----
+  output$ir_chain_table <- renderDT({
+    chain_counts <- bind_rows(lapply(names(ir_immdata$data), function(s) {
+      as.data.frame(table(ir_immdata$data[[s]]$chain)) %>%
+        rename(Chain = Var1, Count = Freq) %>%
+        mutate(Sample = s)
+    })) %>%
+      pivot_wider(names_from = Chain, values_from = Count, values_fill = 0)
+    
+    datatable(chain_counts, options = list(scrollX = TRUE), rownames = FALSE)
+  })
+  
+  output$ir_meta_table <- renderDT({
+    datatable(ir_immdata$meta, options = list(scrollX = TRUE), rownames = FALSE)
+  })
+  
+  # ---- Diversity & Clonality ----
+  output$ir_diversity_plot <- renderPlot({
+    dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_div)
+    div <- repDiversity(dat, .method = input$ir_div_method)
+    vis(div)
+  })
+  
+  output$ir_clonality_plot <- renderPlot({
+    dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_div)
+    clon <- repClonality(dat, .method = "top", .head = c(10, 100, 1000))
+    vis(clon)
+  })
+  
+  # ---- Gene Usage ----
+  output$ir_geneusage_plot <- renderPlot({
+    dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_gene)
+    seg <- input$ir_gene_segment
+    
+    if (input$ir_facet) {
+      gene_usage_all <- bind_rows(lapply(names(dat), function(s) {
+        dat[[s]] %>%
+          count(.data[[seg]], name = "n") %>%
+          mutate(Sample = s)
+      }))
+      names(gene_usage_all)[1] <- "Gene"
+      
+      ggplot(gene_usage_all, aes(x = reorder(Gene, -n), y = n)) +
+        geom_bar(stat = "identity") +
+        facet_wrap(~Sample, scales = "free_y") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6)) +
+        labs(x = seg, y = "Count")
+    } else {
+      df <- dat[[input$ir_gene_sample]]
+      gene_usage <- df %>% count(.data[[seg]], sort = TRUE)
+      names(gene_usage)[1] <- "Gene"
+      top_genes <- gene_usage %>% slice_max(n, n = input$ir_topN)
+      
+      ggplot(top_genes, aes(x = reorder(Gene, -n), y = n)) +
+        geom_bar(stat = "identity") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        labs(x = seg, y = "Count",
+             title = paste0("Top ", input$ir_topN, " ", seg, " (", input$ir_gene_sample, ")"))
+    }
+  })
+  
+  # ---- V-J Pairing ----
+  output$ir_vj_plot <- renderPlot({
+    dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_vj)
+    df <- dat[[input$ir_vj_sample]]
+    req(nrow(df) > 0)
+    
+    vj_table <- df %>%
+      count(V.name, J.name) %>%
+      complete(V.name, J.name, fill = list(n = 0))
+    
+    ggplot(vj_table, aes(x = J.name, y = V.name, fill = n)) +
+      geom_tile() +
+      scale_fill_gradient(low = "white", high = "darkred") +
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6),
+            axis.text.y = element_text(size = 6)) +
+      labs(title = paste("V-J pairing -", input$ir_vj_sample,
+                         "(", input$ir_chain_filter_vj, ")"))
+  })
+  
+  # ---- CDR3 Length ----
+  output$ir_cdr3len_plot <- renderPlot({
+    dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_cdr3)
+    
+    cdr3_len <- bind_rows(lapply(names(dat), function(s) {
+      dat[[s]] %>% mutate(len = nchar(CDR3.aa), Sample = s)
+    }))
+    
+    ggplot(cdr3_len, aes(x = len, fill = Sample)) +
+      geom_density(alpha = 0.4) +
+      labs(x = "CDR3 length (aa)", y = "Density",
+           title = paste("CDR3 length distribution -", input$ir_chain_filter_cdr3))
+  })
+  
+  # ---- Clonotype Tracking ----
+  output$ir_tracking_plot <- renderPlot({
+    dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_track)
+    
+    if (input$ir_track_mode == "topn") {
+      tc <- trackClonotypes(dat, list(1, input$ir_track_topn), .col = "aa")
+    } else {
+      seqs <- strsplit(input$ir_track_custom, "\n")[[1]]
+      seqs <- trimws(seqs)
+      seqs <- seqs[seqs != ""]
+      req(length(seqs) > 0)
+      tc <- trackClonotypes(dat, seqs, .col = "aa")
+    }
+    
+    vis(tc)
+  })
+  
+  
+    
 }

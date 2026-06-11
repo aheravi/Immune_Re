@@ -1,4 +1,10 @@
+#/Users/alireza/Projects/Reverb/R 
 
+git add .
+git commit -m "Add remaining project files"
+git push
+
+# initial 
 echo "# Immune_Re" >> README.md
 git init
 git add README.md
