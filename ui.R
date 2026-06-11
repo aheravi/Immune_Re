@@ -113,13 +113,13 @@ dashboardPage(
                                               "inv.simp" = "inv.simp", "gini" = "gini", "d50" = "d50"))
                   ),
                   box(title = "Diversity", width = 9, status = "primary", solidHeader = TRUE,
-                      withSpinner(plotOutput("ir_diversity_plot", height = "400px"),
+                      withSpinner(plotlyOutput("ir_diversity_plot", height = "400px"),
                                   type = 6, color = "#0dc5c1", color.background = "white")
                   )
                 ),
                 fluidRow(
                   box(title = "Clonal Proportions (Top Clones)", width = 12, status = "primary", solidHeader = TRUE,
-                      withSpinner(plotOutput("ir_clonality_plot", height = "400px"),
+                      withSpinner(plotlyOutput("ir_clonality_plot", height = "400px"),
                                   type = 6, color = "#0dc5c1", color.background = "white")
                   )
                 )
@@ -142,7 +142,7 @@ dashboardPage(
                       checkboxInput("ir_facet", "Facet by sample (all samples)", value = FALSE)
                   ),
                   box(title = "Gene Usage", width = 9, status = "primary", solidHeader = TRUE,
-                      withSpinner(plotOutput("ir_geneusage_plot", height = "500px"),
+                      withSpinner(plotlyOutput("ir_geneusage_plot", height = "500px"),
                                   type = 6, color = "#0dc5c1", color.background = "white")
                   )
                 )
@@ -160,7 +160,7 @@ dashboardPage(
                                   selected = "IGK")
                   ),
                   box(title = "V-J Pairing Heatmap", width = 9, status = "primary", solidHeader = TRUE,
-                      withSpinner(plotOutput("ir_vj_plot", height = "600px"),
+                      withSpinner(plotlyOutput("ir_vj_plot", height = "600px"),
                                   type = 6, color = "#0dc5c1", color.background = "white")
                   )
                 )
@@ -177,7 +177,7 @@ dashboardPage(
                                   selected = "IGK")
                   ),
                   box(title = "CDR3 Length Distribution", width = 9, status = "primary", solidHeader = TRUE,
-                      withSpinner(plotOutput("ir_cdr3len_plot", height = "450px"),
+                      withSpinner(plotlyOutput("ir_cdr3len_plot", height = "450px"),
                                   type = 6, color = "#0dc5c1", color.background = "white")
                   )
                 )
@@ -192,6 +192,7 @@ dashboardPage(
                       selectInput("ir_chain_filter_track", "Chain:",
                                   choices = c("All", "IGH", "IGK", "IGL", "TRA", "TRB", "TRG", "TRD"),
                                   selected = "IGK"),
+                      #verbatimTextOutput("debug_mode"),
                       radioButtons("ir_track_mode", "Track by:",
                                    choices = c("Top N from first sample" = "topn",
                                                "Specific CDR3 sequences" = "custom"),
@@ -200,14 +201,18 @@ dashboardPage(
                         condition = "input.ir_track_mode == 'topn'",
                         numericInput("ir_track_topn", "Top N clonotypes:", value = 10, min = 1, max = 50)
                       ),
+                      # add these to the box to see the results:
+                      #YCGQATHLPPTF
+                      #YCGQGTHFPPTF
                       conditionalPanel(
                         condition = "input.ir_track_mode == 'custom'",
                         textAreaInput("ir_track_custom", "CDR3.aa sequences (one per line):",
-                                      value = "", rows = 5)
+                                      value = "", rows = 5, width = "100%")
                       )
+                      
                   ),
                   box(title = "Clonotype Tracking Across Samples", width = 9, status = "primary", solidHeader = TRUE,
-                      withSpinner(plotOutput("ir_tracking_plot", height = "500px"),
+                      withSpinner(plotlyOutput("ir_tracking_plot", height = "500px"),
                                   type = 6, color = "#0dc5c1", color.background = "white")
                   )
                 )

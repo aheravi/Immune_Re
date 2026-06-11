@@ -224,21 +224,25 @@ function(input, output, session) {
     datatable(ir_immdata$meta, options = list(scrollX = TRUE), rownames = FALSE)
   })
   
+  library(plotly)
+  
   # ---- Diversity & Clonality ----
-  output$ir_diversity_plot <- renderPlot({
+  output$ir_diversity_plot <- renderPlotly({
     dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_div)
     div <- repDiversity(dat, .method = input$ir_div_method)
-    vis(div)
+    p <- vis(div)
+    ggplotly(p)
   })
   
-  output$ir_clonality_plot <- renderPlot({
+  output$ir_clonality_plot <- renderPlotly({
     dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_div)
     clon <- repClonality(dat, .method = "top", .head = c(10, 100, 1000))
-    vis(clon)
+    p <- vis(clon)
+    ggplotly(p)
   })
   
   # ---- Gene Usage ----
-  output$ir_geneusage_plot <- renderPlot({
+  output$ir_geneusage_plot <- renderPlotly({
     dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_gene)
     seg <- input$ir_gene_segment
     
@@ -250,7 +254,9 @@ function(input, output, session) {
       }))
       names(gene_usage_all)[1] <- "Gene"
       
-      ggplot(gene_usage_all, aes(x = reorder(Gene, -n), y = n)) +
+      p <- ggplot(gene_usage_all, aes(x = reorder(Gene, -n), y = n,
+                                      text = paste0("Gene: ", Gene, "<br>Count: ", n,
+                                                    "<br>Sample: ", Sample))) +
         geom_bar(stat = "identity") +
         facet_wrap(~Sample, scales = "free_y") +
         theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6)) +
@@ -261,16 +267,19 @@ function(input, output, session) {
       names(gene_usage)[1] <- "Gene"
       top_genes <- gene_usage %>% slice_max(n, n = input$ir_topN)
       
-      ggplot(top_genes, aes(x = reorder(Gene, -n), y = n)) +
+      p <- ggplot(top_genes, aes(x = reorder(Gene, -n), y = n,
+                                 text = paste0("Gene: ", Gene, "<br>Count: ", n))) +
         geom_bar(stat = "identity") +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         labs(x = seg, y = "Count",
              title = paste0("Top ", input$ir_topN, " ", seg, " (", input$ir_gene_sample, ")"))
     }
+    
+    ggplotly(p, tooltip = "text")
   })
   
   # ---- V-J Pairing ----
-  output$ir_vj_plot <- renderPlot({
+  output$ir_vj_plot <- renderPlotly({
     dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_vj)
     df <- dat[[input$ir_vj_sample]]
     req(nrow(df) > 0)
@@ -279,31 +288,36 @@ function(input, output, session) {
       count(V.name, J.name) %>%
       complete(V.name, J.name, fill = list(n = 0))
     
-    ggplot(vj_table, aes(x = J.name, y = V.name, fill = n)) +
+    p <- ggplot(vj_table, aes(x = J.name, y = V.name, fill = n,
+                              text = paste0("V: ", V.name, "<br>J: ", J.name, "<br>Count: ", n))) +
       geom_tile() +
       scale_fill_gradient(low = "white", high = "darkred") +
       theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6),
             axis.text.y = element_text(size = 6)) +
       labs(title = paste("V-J pairing -", input$ir_vj_sample,
                          "(", input$ir_chain_filter_vj, ")"))
+    
+    ggplotly(p, tooltip = "text")
   })
   
   # ---- CDR3 Length ----
-  output$ir_cdr3len_plot <- renderPlot({
+  output$ir_cdr3len_plot <- renderPlotly({
     dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_cdr3)
     
     cdr3_len <- bind_rows(lapply(names(dat), function(s) {
       dat[[s]] %>% mutate(len = nchar(CDR3.aa), Sample = s)
     }))
     
-    ggplot(cdr3_len, aes(x = len, fill = Sample)) +
+    p <- ggplot(cdr3_len, aes(x = len, fill = Sample)) +
       geom_density(alpha = 0.4) +
       labs(x = "CDR3 length (aa)", y = "Density",
            title = paste("CDR3 length distribution -", input$ir_chain_filter_cdr3))
+    
+    ggplotly(p)
   })
   
   # ---- Clonotype Tracking ----
-  output$ir_tracking_plot <- renderPlot({
+  output$ir_tracking_plot <- renderPlotly({
     dat <- ir_filter_chain(ir_immdata$data, input$ir_chain_filter_track)
     
     if (input$ir_track_mode == "topn") {
@@ -313,12 +327,27 @@ function(input, output, session) {
       seqs <- trimws(seqs)
       seqs <- seqs[seqs != ""]
       req(length(seqs) > 0)
-      tc <- trackClonotypes(dat, seqs, .col = "aa")
+      
+      # Check which sequences actually exist in the (chain-filtered) data
+      all_cdr3 <- unique(unlist(lapply(dat, function(df) df$CDR3.aa)))
+      found <- seqs[seqs %in% all_cdr3]
+      missing <- seqs[!seqs %in% all_cdr3]
+      
+      validate(
+        need(length(found) > 0,
+             paste0("None of the entered CDR3 sequences were found in the '",
+                    input$ir_chain_filter_track, "' chain data.\n",
+                    "Missing: ", paste(missing, collapse = ", ")))
+      )
+      
+      tc <- trackClonotypes(dat, found, .col = "aa")
     }
     
-    vis(tc)
+    p <- vis(tc)
+    ggplotly(p)
   })
   
   
-    
-}
+  ## debugging CDR3 inputs:
+  #output$debug_mode <- renderText({ paste("Mode:", input$ir_track_mode) })
+  }
