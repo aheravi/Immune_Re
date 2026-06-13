@@ -11,13 +11,53 @@
 
 library(immunarch)
 library(ggpubr)
-suppressWarnings(vis(tc))
 
   # Load all files in the directory
   immdata <- repLoad("/mnt/data/analysis/alireza/trust4/immunarch_input/", .mode = "AIRR")
     #If repLoad doesn't auto-detect AIRR format:
     #immdata <- repLoad("/mnt/data/analysis/trust4/immunarch_input/", .format = "airr")
+  
+  # Strip alleles
+  ir_data <- lapply(immdata$data, function(df) {
+    df$V.name <- sub("\\*.*", "", df$V.name)
+    df$J.name <- sub("\\*.*", "", df$J.name)
+    df$D.name <- sub("\\*.*", "", df$D.name)
+    df$chain  <- substr(df$V.name, 1, 3)
+    df$Proportion <- df$Clones / sum(df$Clones, na.rm = TRUE)
+    df
+  })
+  
+  # Build metadata
+  ir_sample_names <- names(ir_data)
+  ir_parsed <- stringr::str_match(ir_sample_names, "^(RV\\d+)_(\\d+)_(\\d+)D(.*)$")
+  
+  ir_meta <- data.frame(
+    Sample  = ir_sample_names,
+    Group1  = ir_parsed[,2],
+    Group2  = ir_parsed[,3],
+    Group3  = ir_parsed[,4],
+    Timepoint_raw = ir_parsed[,5],
+    stringsAsFactors = FALSE
+  )
+  #ir_meta$Timepoint <- recode(ir_meta$Timepoint_raw,
+  #                            "_1" = "01",
+  #                            "_9" = "09",
+  #                            .default = ir_meta$Timepoint_raw)
+  
+  ir_immdata <- list(data = ir_data, meta = ir_meta)
+  
+  # Helper: filter by chain
+  ir_filter_chain <- function(data_list, chain) {
+    if (chain == "All") return(data_list)
+    lapply(data_list, function(df) df %>% filter(chain == !!chain))
+  }
+  
   saveRDS(immdata, "~/ShinyApps/ShinyReverb/immdata.RDS")
+  
+  saveRDS(ir_meta, "~/ShinyApps/ShinyReverb/ir_meta")
+  saveRDS(ir_immdata, "~/ShinyApps/ShinyReverb/ir_immdata")
+  saveRDS(ir_filter_chain, "~/ShinyApps/ShinyReverb/ir_filter_chain.RDS")
+  
   
   # Check what loaded
   names(immdata$data)
@@ -65,11 +105,11 @@ suppressWarnings(vis(tc))
   )
   
   # Fix the known mislabeled entries
-  immdata$meta$Timepoint <- recode(immdata$meta$Timepoint_raw,
-                                   "_1" = "01",
-                                   "_9" = "09",
-                                   .default = immdata$meta$Timepoint_raw
-  )
+  #immdata$meta$Timepoint <- recode(immdata$meta$Timepoint_raw,
+  #                                 "_1" = "01",
+  #                                 "_9" = "09",
+  #                                 .default = immdata$meta$Timepoint_raw
+  #)
   
   #immdata$meta
   
